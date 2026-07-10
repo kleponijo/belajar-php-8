@@ -1,14 +1,30 @@
 <?php
 
-#[Attribute]
+#[Attribute(Attribute::TARGET_PROPERTY | Attribute::TARGET_CLASS)]
 class NotBlank {}
+
+#[Attribute(Attribute::TARGET_PROPERTY)]
+class Length
+{
+  public int $min;
+  public int $max;
+
+  public function __construct(int $min, int $max)
+  {
+    $this->min = $min;
+    $this->max = $max;
+  }
+}
 
 class LoginRequest
 {
+  #[Length(min: 4, max: 10)]
+
   #[NotBlank]
   public ?string $username;
 
   #[NotBlank]
+  #[Length(min: 8, max: 10)]
   public ?string $password;
 }
 
@@ -18,6 +34,7 @@ function validate(object $object): void
   $properties = $class->getProperties();
   foreach ($properties as $property) {
     validateNotBlank($property, $object);
+    validateLength($property, $object);
   }
 }
 
@@ -32,7 +49,25 @@ function validateNotBlank(ReflectionProperty $property, object $object): void
   }
 }
 
+function validateLength(ReflectionProperty $property, object $object): void
+{
+  if (!$property->isInitialized($object) || $property->getValue($object) == null) {
+    return;
+  }
+
+  $value = $property->getValue($object);
+  $attributes = $property->getAttributes(Length::class);
+  foreach ($attributes as $attribute) {
+    $length = $attribute->newInstance();
+    $valueLength = strlen($value);
+    if ($valueLength < $length->min)
+      throw new Exception("Property $property->name is to short");
+    if ($valueLength > $length->max)
+      throw new Exception("Property $property->name is to long");
+  }
+}
+
 $request = new LoginRequest();
 $request->username = "nadif";
-$request->password = null;
+$request->password = "rahasia123";
 validate($request);
